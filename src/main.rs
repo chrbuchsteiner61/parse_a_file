@@ -3,7 +3,7 @@ use std::io;
 
 fn main() -> io::Result<()> {
     // List of elements to search for
-    let elements = vec!["<a>", "<b>", "<c>", "<d>", "<e>", "<f>"];
+    let elements = vec!["<a>", "<b>", "<c>", "<d>", "<e>", "<f>", "<g>"];
     
     // Read the file content
     let content = fs::read_to_string("src/xml_style_file.xml")?;
@@ -28,6 +28,9 @@ fn main() -> io::Result<()> {
                 let headline = element_name.to_string();
                 values.push(headline.clone());
                 println!("Found headline: {}", headline);
+            } else {
+                // Element not found in file
+                println!("Element '{}' not found in file", element_name);
             }
         } else {
             for value in found_values {
