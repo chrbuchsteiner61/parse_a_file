@@ -3,7 +3,7 @@ use std::io;
 
 fn main() -> io::Result<()> {
     // List of elements to search for
-    let elements = vec!["<a>", "<b>", "<c>","<e>"];
+    let elements = vec!["<a>", "<b>", "<c>","<d>","<e>"];
     
     // Read the file content
     let content = fs::read_to_string("C:\\Users\\chrbu\\Documents\\Development\\RUST\\ParseAFile\\parse_a_file\\src\\xml_style_file.xml")?;
