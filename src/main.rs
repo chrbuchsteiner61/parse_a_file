@@ -1,79 +1,91 @@
 use std::fs;
 use std::io;
 
+const FILE_PATH: &str = "src/xml_style_file.xml";
+
 fn main() -> io::Result<()> {
-    // List of elements to search for
     let elements = vec!["<a>", "<b>", "<c>", "<d>", "<e>", "<f>", "<g>"];
+    let content = fs::read_to_string(FILE_PATH)?;
     
-    // Read the file content
-    let content = fs::read_to_string("src/xml_style_file.xml")?;
-    
-       // New list to store found values
-    let mut values = Vec::new();
-    
-    // Search for each element
-    for element in &elements {
-        // Create the closing tag (e.g., "<a>" -> "</a>")
-        let closing_tag = element.replace("<", "</");
-        
-        // Extract element name (e.g., "<a>" -> "a")
-        let element_name = element.trim_start_matches('<').trim_end_matches('>');
-        
-        // Find all values for this element
-        let found_values = extract_all_values(&content, element, &closing_tag);
-        
-        if found_values.is_empty() {
-            // No direct value - check if element exists and use as headline
-            if content.contains(element) {
-                let headline = element_name.to_string();
-                values.push(headline.clone());
-                println!("Found headline: {}", headline);
-            } else {
-                // Element not found in file
-                println!("Element '{}' not found in file", element_name);
-            }
-        } else {
-            for value in found_values {
-                let formatted = format!("{}: {}", element_name, value);
-                values.push(formatted.clone());
-                println!("Found {}", formatted);
-            }
-        }
-    }
+    let values = process_elements(&content, &elements);
     
     println!("\nExtracted values: {:?}", values);
     
     Ok(())
 }
 
+fn process_elements(content: &str, elements: &[&str]) -> Vec<String> {
+    let mut values = Vec::new();
+    
+    for element in elements {
+        let element_name = extract_element_name(element);
+        let closing_tag = create_closing_tag(element);
+        let found_values = extract_all_values(content, element, &closing_tag);
+        
+        match process_element_result(content, element, &element_name, found_values) {
+            ElementResult::Values(vals) => {
+                for value in vals {
+                    let formatted = format!("{}: {}", element_name, value);
+                    println!("Found {}", formatted);
+                    values.push(formatted);
+                }
+            }
+            ElementResult::Headline(headline) => {
+                println!("Found headline: {}", headline);
+                values.push(headline);
+            }
+            ElementResult::NotFound => {
+                println!("Element '{}' not found in file", element_name);
+            }
+        }
+    }
+    
+    values
+}
+
+enum ElementResult {
+    Values(Vec<String>),
+    Headline(String),
+    NotFound,
+}
+
+fn process_element_result(
+    content: &str,
+    element: &str,
+    element_name: &str,
+    found_values: Vec<String>,
+) -> ElementResult {
+    if found_values.is_empty() {
+        if content.contains(element) {
+            ElementResult::Headline(element_name.to_string())
+        } else {
+            ElementResult::NotFound
+        }
+    } else {
+        ElementResult::Values(found_values)
+    }
+}
+
+fn extract_element_name(element: &str) -> String {
+    element.trim_start_matches('<').trim_end_matches('>').to_string()
+}
+
+fn create_closing_tag(open_tag: &str) -> String {
+    open_tag.replace('<', "</")
+}
+
 fn extract_all_values(content: &str, open_tag: &str, close_tag: &str) -> Vec<String> {
     let mut results = Vec::new();
     let mut search_from = 0;
     
-    while let Some(start_pos) = content[search_from..].find(open_tag) {
-        let abs_start = search_from + start_pos;
-        let value_start = abs_start + open_tag.len();
+    while let Some(tag_position) = find_next_tag(content, open_tag, search_from) {
+        let value_start = tag_position + open_tag.len();
         
-        // Find the closing tag
         if let Some(end_pos) = content[value_start..].find(close_tag) {
             let value_content = &content[value_start..value_start + end_pos];
             
-            // Check if there are nested tags
-            if value_content.contains('<') {
-                // Has nested content, extract only direct text (before first tag)
-                if let Some(first_tag) = value_content.find('<') {
-                    let direct_text = value_content[..first_tag].trim();
-                    if !direct_text.is_empty() {
-                        results.push(direct_text.to_string());
-                    }
-                }
-                // If no direct text before nested tags, skip this element
-            } else {
-                // Simple text content, no nesting
-                let text = value_content.trim();
-                if !text.is_empty() {
-                    results.push(text.to_string());
-                }
+            if let Some(extracted) = extract_text_content(value_content) {
+                results.push(extracted);
             }
             
             search_from = value_start + end_pos + close_tag.len();
@@ -83,4 +95,32 @@ fn extract_all_values(content: &str, open_tag: &str, close_tag: &str) -> Vec<Str
     }
     
     results
+}
+
+fn find_next_tag(content: &str, tag: &str, from: usize) -> Option<usize> {
+    content[from..].find(tag).map(|pos| from + pos)
+}
+
+fn extract_text_content(value_content: &str) -> Option<String> {
+    if value_content.contains('<') {
+        // Has nested content, extract only direct text before first tag
+        value_content
+            .find('<')
+            .and_then(|first_tag| {
+                let direct_text = value_content[..first_tag].trim();
+                if !direct_text.is_empty() {
+                    Some(direct_text.to_string())
+                } else {
+                    None
+                }
+            })
+    } else {
+        // Simple text content, no nesting
+        let text = value_content.trim();
+        if !text.is_empty() {
+            Some(text.to_string())
+        } else {
+            None
+        }
+    }
 }
